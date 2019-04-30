@@ -46,12 +46,13 @@ define([
     'esri/symbols/SimpleFillSymbol',
     'esri/symbols/SimpleLineSymbol',
     './utils',
+    'libs/mjm_ClickReport', //MJM
     'dojo/NodeList-dom'
   ],
   function(declare, lang, array, html, when, on, aspect, query, keys, Deferred, all, focusUtil,
     BaseWidget, LayerInfos, jimuUtils, wkidUtils, esriConfig, Search, Locator,
     FeatureLayer, PopupTemplate, esriLang, Point, coordinateFormatter, SpatialReference, FeatureQuery,
-    Color, SimpleMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, utils) {
+    Color, SimpleMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, utils, mjm_ClickReport) {
     //To create a widget, you need to derive from BaseWidget.
     return declare([BaseWidget], {
       name: 'Search',
@@ -109,7 +110,7 @@ define([
                 enableButtonMode: false,
                 enableLabel: false,
                 enableHighlight: true,
-                enableInfoWindow: true,
+                enableInfoWindow: false,  //MJM - disable default address found popup
                 showInfoWindowOnSelect: true,
                 map: this.map,
                 sources: searchSouces,
@@ -503,6 +504,8 @@ define([
       },
 
       _onSelectResult: function(e) {
+        this.searchDijit.clearGraphics(); //MJM - Clear default address point graphic
+        mjm_ClickReport.newReport(this.map, e.result.feature.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup - need to be consistent with geocoders (sends map point)
         var result = e.result;
         var dataSourceIndex = e.sourceIndex;
         var sourceResults = this.searchResults[dataSourceIndex];
