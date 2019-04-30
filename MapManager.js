@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,9 +46,7 @@ define([
 ], function(declare, lang, array, html, query, topic, on, aspect, keys, i18n, dojoConfig, InfoWindow,
   PopupMobile, InfoTemplate, esriRequest, arcgisUtils, Extent, Point, require, jimuUtils,
   LayerInfos, Message, AppStatePopup, MapUrlParamsHandler, AppStateManager, PopupManager, 
-
-   mjm_ClickReport,
-
+  mjm_ClickReport,
   FilterManager) {
   var instance = null,
     clazz = declare(null, {
@@ -75,7 +73,7 @@ define([
         topic.subscribe("mapContentModified", lang.hitch(this, this.onMapContentModified));
 
         on(window, 'resize', lang.hitch(this, this.onWindowResize));
-        on(window, 'beforeunload', lang.hitch(this, this.onBeforeUnload));
+        on(window, 'unload', lang.hitch(this, this.onUnload));
       },
 
       showMap: function() {
@@ -102,7 +100,7 @@ define([
         }
       },
 
-      onBeforeUnload: function() {
+      onUnload: function() {
         if(this.appConfig.keepAppState) {
           this.appStateManager.saveWabAppState(this.map, this.layerInfosObj);
         }
@@ -280,12 +278,12 @@ define([
 
         mapDeferred.then(lang.hitch(this, function(response) {
           var map = response.map;
-
-          //MJM - Override Default Map Click - start here
-          map.on("click", function(evt){
-            mjm_ClickReport.newReport(map, evt.mapPoint, map.spatialReference); 
-          });
-          //end MJM
+          
+          //MJM - Override Default Map Click - start here -------	
+          map.on("click", function(evt){	
+            mjm_ClickReport.newReport(map, evt.mapPoint, map.spatialReference); 	
+          });	
+          //end MJM	---------------------------------------------
 
           //hide the default zoom slider
           map.hideZoomSlider();
