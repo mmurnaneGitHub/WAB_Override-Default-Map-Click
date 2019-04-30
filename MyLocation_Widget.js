@@ -22,11 +22,12 @@ define([
     'dojo/on',
     'dojo/_base/lang',
     'jimu/utils',
+    'libs/mjm_ClickReport', //MJM
     "./a11y/Widget",
     'jimu/dijit/Message',
     'dojo/touch'
   ],
-  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, a11y) {
+  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport, a11y) {
     var clazz = declare([BaseWidget], {
 
       name: 'MyLocation',
@@ -99,6 +100,7 @@ define([
         } else {
           html.addClass(this.domNode, "onCenter");
           this.neverLocate = false;
+          mjm_ClickReport.newReport(this.map, parameters.graphic.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup at geolocation (sends map point)
         }
       },
 
