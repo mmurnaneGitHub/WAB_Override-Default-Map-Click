@@ -1,5 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-// Copyright © Esri. All Rights Reserved.
+  ///////////////////////////////////////////////////////////////////////////
+// Copyright © 2014 - 2018 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@ define([
     'dojo/_base/lang',
     'jimu/utils',
     'libs/mjm_ClickReport', //MJM
-    "./a11y/Widget",
     'jimu/dijit/Message',
     'dojo/touch'
   ],
-  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport, a11y) {
+  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport) {
     var clazz = declare([BaseWidget], {
 
       name: 'MyLocation',
@@ -37,7 +36,6 @@ define([
 
       startup: function() {
         this.inherited(arguments);
-        this.a11y_updateLabel(this.nls._widgetLabel);
         this.placehoder = html.create('div', {
           'class': 'place-holder',
           title: this.label
@@ -52,8 +50,6 @@ define([
         } else if (window.navigator.geolocation) {
           this.own(on(this.placehoder, 'click', lang.hitch(this, this.onLocationClick)));
           this.own(on(this.map, 'zoom-end', lang.hitch(this, this._scaleChangeHandler)));
-
-          this.a11y_initEvents();
         } else {
           html.setAttr(this.placehoder, 'title', this.nls.browserError);
         }
@@ -71,7 +67,6 @@ define([
           html.addClass(this.placehoder, "locating");
         }
       },
-
       //use current scale in Tracking
       _scaleChangeHandler: function() {
         var scale = this.map.getScale();
@@ -100,7 +95,7 @@ define([
         } else {
           html.addClass(this.domNode, "onCenter");
           this.neverLocate = false;
-          mjm_ClickReport.newReport(this.map, parameters.graphic.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup at geolocation (sends map point)
+            mjm_ClickReport.newReport(this.map, parameters.graphic.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup at geolocation (sends map point)
         }
       },
 
@@ -157,7 +152,5 @@ define([
     });
     clazz.inPanel = false;
     clazz.hasUIFile = false;
-
-    clazz.extend(a11y);//for a11y
     return clazz;
   });
