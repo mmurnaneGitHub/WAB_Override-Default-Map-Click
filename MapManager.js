@@ -41,10 +41,13 @@ define([
   './MapUrlParamsHandler',
   './AppStateManager',
   './PopupManager',
+  'libs/mjm_ClickReport', //MJM
   './FilterManager'
 ], function(declare, lang, array, html, query, topic, on, aspect, keys, i18n, dojoConfig, InfoWindow,
   PopupMobile, InfoTemplate, esriRequest, arcgisUtils, Extent, Point, require, jimuUtils,
-  LayerInfos, Message, AppStatePopup, MapUrlParamsHandler, AppStateManager, PopupManager, FilterManager) {
+  LayerInfos, Message, AppStatePopup, MapUrlParamsHandler, AppStateManager, PopupManager, 
+  mjm_ClickReport,
+  FilterManager) {
   var instance = null,
     clazz = declare(null, {
       appConfig: null,
@@ -275,6 +278,12 @@ define([
 
         mapDeferred.then(lang.hitch(this, function(response) {
           var map = response.map;
+          
+          //MJM - Override Default Map Click - start here -------	
+          map.on("click", function(evt){	
+            mjm_ClickReport.newReport(map, evt.mapPoint, map.spatialReference); 	
+          });	
+          //end MJM	---------------------------------------------
 
           //hide the default zoom slider
           map.hideZoomSlider();
