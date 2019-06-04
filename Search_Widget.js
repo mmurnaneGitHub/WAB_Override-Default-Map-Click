@@ -110,7 +110,7 @@ define([
                 enableButtonMode: false,
                 enableLabel: false,
                 enableHighlight: true,
-                enableInfoWindow: false,  //MJM - disable default address found popup
+                enableInfoWindow: false,  //MJM - disable default address found popup | In the Search config file the "showInfoWindowOnSelect" option must be set to false to prevent mobile popups from ignoring generated popup report from mjm_ClickReport.js. 
                 showInfoWindowOnSelect: true,
                 map: this.map,
                 sources: searchSouces,
