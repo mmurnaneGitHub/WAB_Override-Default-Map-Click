@@ -1,7 +1,7 @@
 # WAB_Override-Default-Map-Click
 Customized files to override defaults for Map Click (MapManager.js), Search Widget Popup (Search_Widget.js), and MyLocation Graphic/Popup (MyLocation_Widget.js) in Esri's Web AppBuilder.
 
-Version 2.12
+Version 2.13
 
 INSTRUCTIONS:
 
