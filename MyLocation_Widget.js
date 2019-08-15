@@ -1,5 +1,5 @@
-  ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+///////////////////////////////////////////////////////////////////////////
+// Copyright © Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@ define([
     'dojo/_base/lang',
     'jimu/utils',
     'libs/mjm_ClickReport', //MJM
+    "./Compass",
+    "./a11y/Widget",
     'jimu/dijit/Message',
     'dojo/touch'
   ],
-  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport) {
+  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport, Compass, a11y) {
     var clazz = declare([BaseWidget], {
 
       name: 'MyLocation',
@@ -36,6 +38,7 @@ define([
 
       startup: function() {
         this.inherited(arguments);
+        this.a11y_updateLabel(this.nls._widgetLabel);
         this.placehoder = html.create('div', {
           'class': 'place-holder',
           title: this.label
@@ -50,23 +53,33 @@ define([
         } else if (window.navigator.geolocation) {
           this.own(on(this.placehoder, 'click', lang.hitch(this, this.onLocationClick)));
           this.own(on(this.map, 'zoom-end', lang.hitch(this, this._scaleChangeHandler)));
+
+          this.a11y_initEvents();
         } else {
           html.setAttr(this.placehoder, 'title', this.nls.browserError);
         }
       },
 
-      onLocationClick: function() {
+      onLocationClick: function(evt) {
+        if(evt && evt.stopPropagation){
+          evt.stopPropagation();
+        }
+
         if (html.hasClass(this.domNode, "onCenter") ||
           html.hasClass(this.domNode, "locating")) {
           html.removeClass(this.domNode, "onCenter");
           html.removeClass(this.placehoder, "tracking");
           this._destroyGeoLocate();
+          // this._destroyDirectionHandler();
+          // this._destroyAccCircle();
+          this._tryToCleanCompass();
         } else {
           this._createGeoLocate();
           this.geoLocate.locate();
           html.addClass(this.placehoder, "locating");
         }
       },
+
       //use current scale in Tracking
       _scaleChangeHandler: function() {
         var scale = this.map.getScale();
@@ -84,7 +97,7 @@ define([
         }
       },
 
-      onLocate: function(parameters) {
+      onLocate: function (parameters) {
         html.removeClass(this.placehoder, "locating");
         if (this.geoLocate.useTracking) {
           html.addClass(this.placehoder, "tracking");
@@ -95,12 +108,39 @@ define([
         } else {
           html.addClass(this.domNode, "onCenter");
           this.neverLocate = false;
-            mjm_ClickReport.newReport(this.map, parameters.graphic.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup at geolocation (sends map point)
+          mjm_ClickReport.newReport(this.map, parameters.graphic.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup at geolocation (sends map point)
+
+          this._tryToShowCompass(parameters);
+        }
+      },
+
+      //compass
+      _tryToShowCompass: function (parameters) {
+        if (true !== this.config.locateButton.highlightLocation ||
+          true !== this.config.locateButton.useTracking) {
+          return;//1 or all false
+        }
+        if (true !== this.config.useCompass && true !== this.config.useAccCircle) {
+          return;//all false
+        }
+
+        this.compass = Compass.getInstance({ folderUrl: this.folderUrl, map: this.map, config: this.config });
+        this.compass.show(parameters, this.geoLocate);
+      },
+      _tryToCleanCompass: function () {
+        if (this.compass && this.compass.clean) {
+          this.compass.clean();
+        }
+      },
+      _tryToDestroyCompass: function () {
+        if (this.compass && this.compass.destroy) {
+          this.compass.destroy();
         }
       },
 
       onLocateError: function(evt) {
         console.error(evt.error);
+        this._tryToCleanCompass();
         html.removeClass(this.placehoder, "locating");
         html.removeClass(this.domNode, "onCenter");
         html.removeClass(this.placehoder, "tracking");
@@ -144,13 +184,18 @@ define([
 
         this.geoLocate = null;
       },
-
-      destroy: function() {
+      destroy: function () {
+        this._tryToCleanCompass();
+        this._tryToDestroyCompass();
+        // this._destroyDirectionHandler();
+        //this._destroyAccCircle();
         this._destroyGeoLocate();
         this.inherited(arguments);
       }
     });
     clazz.inPanel = false;
     clazz.hasUIFile = false;
+
+    clazz.extend(a11y);//for a11y
     return clazz;
   });
