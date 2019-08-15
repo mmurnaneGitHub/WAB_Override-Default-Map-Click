@@ -278,13 +278,13 @@ define([
 
         mapDeferred.then(lang.hitch(this, function(response) {
           var map = response.map;
-          
+
           //MJM - Override Default Map Click - start here -------	
           map.on("click", function(evt){	
             mjm_ClickReport.newReport(map, evt.mapPoint, map.spatialReference); 	
           });	
           //end MJM	---------------------------------------------
-
+  
           //hide the default zoom slider
           map.hideZoomSlider();
 
@@ -325,6 +325,7 @@ define([
           this._publishMapEvent(map);
           setTimeout(lang.hitch(this, this._checkAppState), 500);
           this._addDataLoadingOnMapUpdate(map);
+          this._hideError();
         }), lang.hitch(this, function(error) {
           console.error(error);
           this._showError(error);
@@ -383,10 +384,16 @@ define([
       _showError: function(err){
         if(err && err.message){
           html.create('div', {
-            'class': 'app-error',
+            'class': 'app-error load-map-error',
             innerHTML: err.message
           }, document.body);
         }
+      },
+
+      _hideError: function() {
+        query("div.load-map-error", document.body).forEach(function(node){
+          document.body.removeChild(node);
+        });
       },
 
       _createWebMapRaw: function(webMapPortalUrl, webMapItemId, mapDivId,  webMapOptions){
