@@ -235,7 +235,6 @@ define([
               name: jimuUtils.stripHTML(source.name || ""),
               placeholder: jimuUtils.stripHTML(source.placeholder || ""),
               countryCode: source.countryCode || "",
-              maxSuggestions: source.maxSuggestions,
               maxResults: source.maxResults || 6,
               zoomScale: source.zoomScale || 50000,
               useMapExtent: !!source.searchInCurrentMapExtent,
@@ -247,10 +246,18 @@ define([
               _panToScale: source.panToScale
             };
 
+            if(source.maxSuggestions === 0) {
+              _source.enableSuggestions = false;
+            } else if (source.maxSuggestions === null || source.maxSuggestions === undefined) {
+              _source.maxSuggestions = 6;
+            } else {
+              _source.maxSuggestions = source.maxSuggestions;
+            }
+
             if (source.enableLocalSearch) {
               _source.localSearchOptions = {
                 minScale: source.localSearchMinScale,
-                distance: source.localSearchDistance
+                distance: this._getLocalSearchDistance(source)
               };
             }
 
@@ -310,7 +317,6 @@ define([
                 exactMatch: !!source.exactMatch,
                 name: jimuUtils.stripHTML(source.name || ""),
                 placeholder: jimuUtils.stripHTML(source.placeholder || ""),
-                maxSuggestions: source.maxSuggestions || 6,
                 maxResults: source.maxResults || 6,
                 zoomScale: source.zoomScale || 50000,
                 //infoTemplate: lang.clone(template),
@@ -326,6 +332,15 @@ define([
                 delete convertedSource.infoTemplate;
               }
               */
+
+              if(source.maxSuggestions === 0) {
+                convertedSource.enableSuggestions = false;
+              } else if (source.maxSuggestions === null || source.maxSuggestions === undefined) {
+                convertedSource.maxSuggestions = 6;
+              } else {
+                convertedSource.maxSuggestions = source.maxSuggestions;
+              }
+
               if (convertedSource._featureLayerId) {
                 var layerInfo = this.layerInfosObj
                   .getLayerInfoById(convertedSource._featureLayerId);
@@ -392,6 +407,34 @@ define([
         }));
 
         return sourceDefs;
+      },
+
+      _getLocalSearchDistance: function(source) {
+        var result;
+        switch(source.radiusUnit || "meter") {
+          case "kilometer":
+            result = source.localSearchDistance * 1000;
+            break;
+          case "nauticalMile":
+            result = source.localSearchDistance * 1852;
+            break;
+          case "mile":
+            result = source.localSearchDistance * 1609.344;
+            break;
+          case "yard":
+            result = source.localSearchDistance * 0.9144;
+            break;
+          case "foot":
+            result = source.localSearchDistance * 0.3048;
+            break;
+          case "inch":
+            result = source.localSearchDistance * 0.0254;
+            break;
+          default:
+            result = source.localSearchDistance;
+            break;
+        }
+        return result;
       },
 
       _getInfoTemplate: function(fLayer, source) {
@@ -482,6 +525,14 @@ define([
         }
       },
 
+      _cloneInfoTemplate: function(infoTemplate) {
+        var newInfoTemplate = null;
+        if(infoTemplate && infoTemplate.toJson) {
+          newInfoTemplate = new infoTemplate.constructor(infoTemplate.toJson());
+        }
+        return newInfoTemplate;
+      },
+
       _loadInfoTemplateAndShowPopup: function(layerInfo, selectedFeature, selectEvent) {
         if(layerInfo) {
           //this.searchDijit.clearGraphics();
@@ -491,7 +542,7 @@ define([
           } else {
             layerInfo.loadInfoTemplate().then(lang.hitch(this, function(infoTemplate) {
               //temporary set infoTemplate to selectedFeature.
-              selectedFeature.setInfoTemplate(lang.clone(infoTemplate));
+              selectedFeature.setInfoTemplate(this._cloneInfoTemplate(infoTemplate));
               this._showPopupByFeatures(layerInfo, [selectedFeature], selectEvent);
               // clear infoTemplate for selectedFeature;
               var handle = aspect.before(this.map, 'onClick', lang.hitch(this, function() {
@@ -672,8 +723,8 @@ define([
                 htmlContent += '<div title="' + name + '" class="menuHeader">' + name + '</div>';
               }
               htmlContent += "<ul>";
-              var partialMatch = value;
-              var r = new RegExp("(" + partialMatch + ")", "gi");
+              //var partialMatch = value;
+              //var r = new RegExp("(" + partialMatch + ")", "gi");
               var maxResults = sources[i].maxResults;
 
               for (var j = 0, len = results[i].length; j < len && j < maxResults; j++) {
@@ -691,7 +742,7 @@ define([
 
                 htmlContent += '<li title="' + text + '" data-index="' + j +
                   '" data-source-index="' + i + '" role="menuitem" tabindex="0">' +
-                  text.toString().replace(r, "<strong >$1</strong>") + '</li>';
+                  /*text.toString().replace(r, "<strong >$1</strong>") +*/ text.toString() + '</li>';
               }
               htmlContent += '</ul>';
 
