@@ -15,41 +15,41 @@
 ///////////////////////////////////////////////////////////////////////////
 
 define([
-    'dojo/_base/declare',
-    'dojo/_base/lang',
-    'dojo/_base/array',
-    'dojo/_base/html',
-    'dojo/when',
-    'dojo/on',
-    'dojo/aspect',
-    'dojo/query',
-    'dojo/keys',
-    'dojo/Deferred',
-    'dojo/promise/all',
-    "dijit/focus",
-    'jimu/BaseWidget',
-    'jimu/LayerInfos/LayerInfos',
-    'jimu/utils',
-    'jimu/SpatialReference/wkidUtils',
-    'esri/config',
-    'esri/dijit/Search',
-    'esri/tasks/locator',
-    'esri/layers/FeatureLayer',
-    'esri/dijit/PopupTemplate',
-    'esri/lang',
-    'esri/geometry/Point',
-    'esri/geometry/coordinateFormatter',
-    'esri/SpatialReference',
-    'esri/tasks/query',
-    'esri/Color',
-    'esri/symbols/SimpleMarkerSymbol',
-    'esri/symbols/SimpleFillSymbol',
-    'esri/symbols/SimpleLineSymbol',
-    './utils',
-    'libs/mjm_ClickReport', //MJM
-    'dojo/NodeList-dom'
-  ],
-  function(declare, lang, array, html, when, on, aspect, query, keys, Deferred, all, focusUtil,
+  'dojo/_base/declare',
+  'dojo/_base/lang',
+  'dojo/_base/array',
+  'dojo/_base/html',
+  'dojo/when',
+  'dojo/on',
+  'dojo/aspect',
+  'dojo/query',
+  'dojo/keys',
+  'dojo/Deferred',
+  'dojo/promise/all',
+  "dijit/focus",
+  'jimu/BaseWidget',
+  'jimu/LayerInfos/LayerInfos',
+  'jimu/utils',
+  'jimu/SpatialReference/wkidUtils',
+  'esri/config',
+  'esri/dijit/Search',
+  'esri/tasks/locator',
+  'esri/layers/FeatureLayer',
+  'esri/dijit/PopupTemplate',
+  'esri/lang',
+  'esri/geometry/Point',
+  'esri/geometry/coordinateFormatter',
+  'esri/SpatialReference',
+  'esri/tasks/query',
+  'esri/Color',
+  'esri/symbols/SimpleMarkerSymbol',
+  'esri/symbols/SimpleFillSymbol',
+  'esri/symbols/SimpleLineSymbol',
+  './utils',
+  'libs/mjm_ClickReport', //MJM
+  'dojo/NodeList-dom'
+],
+  function (declare, lang, array, html, when, on, aspect, query, keys, Deferred, all, focusUtil,
     BaseWidget, LayerInfos, jimuUtils, wkidUtils, esriConfig, Search, Locator,
     FeatureLayer, PopupTemplate, esriLang, Point, coordinateFormatter, SpatialReference, FeatureQuery,
     Color, SimpleMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, utils, mjm_ClickReport) {
@@ -62,7 +62,7 @@ define([
       _startWidth: null,
       _pointOfSpecifiedUtmCache: null,
 
-      postCreate: function() {
+      postCreate: function () {
         html.setAttr(this.domNode, 'aria-label', this.nls._widgetLabel);
 
         if (this.closeable || !this.isOnScreen) {
@@ -73,7 +73,7 @@ define([
         this._pointOfSpecifiedUtmCache = {};
       },
 
-      startup: function() {
+      startup: function () {
         this.inherited(arguments);
 
         if (!(this.config && this.config.sources)) {
@@ -82,22 +82,22 @@ define([
 
         coordinateFormatter.load();
         LayerInfos.getInstance(this.map, this.map.itemInfo)
-          .then(lang.hitch(this, function(layerInfosObj) {
+          .then(lang.hitch(this, function (layerInfosObj) {
             this.layerInfosObj = layerInfosObj;
             this.own(this.layerInfosObj.on(
-            'layerInfosFilterChanged',
-            lang.hitch(this, this.onLayerInfosFilterChanged)));
+              'layerInfosFilterChanged',
+              lang.hitch(this, this.onLayerInfosFilterChanged)));
 
             utils.setMap(this.map);
             utils.setLayerInfosObj(this.layerInfosObj);
             utils.setAppConfig(this.appConfig);
-            when(utils.getConfigInfo(this.config)).then(lang.hitch(this, function(config) {
-              return all(this._convertConfig(config)).then(function(searchSouces) {
-                return array.filter(searchSouces, function(source) {
+            when(utils.getConfigInfo(this.config)).then(lang.hitch(this, function (config) {
+              return all(this._convertConfig(config)).then(function (searchSouces) {
+                return array.filter(searchSouces, function (source) {
                   return source;
                 });
               });
-            })).then(lang.hitch(this, function(searchSouces) {
+            })).then(lang.hitch(this, function (searchSouces) {
               if (!this.domNode) {
                 return;
               }
@@ -148,33 +148,52 @@ define([
                 aspect.around(this.searchDijit, '_search', lang.hitch(this, '_convertSR'))
               );
 
+              this.own(
+                aspect.before(this.searchDijit, '_formatResults',
+                  lang.hitch(this.searchDijit, function (results, idx, value) {
+                    try {
+                      var newResults = array.map(results, function (result) {
+                        if (result && (result instanceof Error || result.length >= 0)) {
+                          return result;
+                        } else {
+                          return new Error(result && result.message || "Invalid query source or locator");
+                        }
+                      });
+                      return [newResults, idx, value];
+                    } catch (err) {
+                      console.log(err && err.message);
+                      return [results, idx, value];
+                    }
+                  }))
+              );
+
               /*****************************************
                * Binding events about 508 accessbility
                * ***************************************/
 
-              if(searchSouces.length === 1){
+              if (searchSouces.length === 1) {
                 jimuUtils.initFirstFocusNode(this.domNode, this.searchDijit.inputNode);
-              }else{
+              } else {
                 jimuUtils.initFirstFocusNode(this.domNode, this.searchDijit.sourcesBtnNode);
               }
               jimuUtils.initLastFocusNode(this.domNode, this.searchDijit.submitNode);
-              this.own(on(this.domNode, "keydown", lang.hitch(this, function(evt) {
-                if(html.hasClass(evt.target, this.baseClass) && evt.keyCode === keys.ENTER) {//enter to first node
+              this.own(on(this.domNode, "keydown", lang.hitch(this, function (evt) {
+                if (html.hasClass(evt.target, this.baseClass) && evt.keyCode === keys.ENTER) {//enter to first node
                   this.searchDijit.sourcesBtnNode.focus();
                 }
                 //esc to close searched list
-                else if(!html.hasClass(evt.target, this.baseClass) && evt.keyCode === keys.ESCAPE) {
-                  if(html.getStyle(this.searchResultsNode, 'display') === 'block'){
+                else if (!html.hasClass(evt.target, this.baseClass) && evt.keyCode === keys.ESCAPE) {
+                  if (html.getStyle(this.searchResultsNode, 'display') === 'block') {
                     html.setStyle(this.searchResultsNode, 'display', 'none');
                   }
                 }
               })));
 
               this.own(
-                aspect.around(this.searchDijit, '_inputKey', lang.hitch(this, function(originalFun) {
-                  return lang.hitch(this, function(e) {
+                aspect.around(this.searchDijit, '_inputKey', lang.hitch(this, function (originalFun) {
+                  return lang.hitch(this, function (e) {
                     var returnValue = null;
-                    if(html.getStyle(this.searchResultsNode, 'display') === 'block') {
+                    if (html.getStyle(this.searchResultsNode, 'display') === 'block') {
                       console.log("searchResultsNode");
                       this._inputKey(e);
                     } else {
@@ -192,7 +211,7 @@ define([
                 on(this.searchDijit.domNode, 'click', lang.hitch(this, '_onSearchDijitClick'))
               );
 
-              this.own(on(this.searchDijit.inputNode, "keyup", lang.hitch(this, function(e) {
+              this.own(on(this.searchDijit.inputNode, "keyup", lang.hitch(this, function (e) {
                 if (e.keyCode !== keys.ENTER && e.keyCode !== keys.UP_ARROW && e.keyCode !== keys.DOWN_ARROW) {
                   this._onClearSearch();
                 }
@@ -212,7 +231,7 @@ define([
               ));
 
               this.own(
-                on(window.document, 'click', lang.hitch(this, function(e) {
+                on(window.document, 'click', lang.hitch(this, function (e) {
                   if (!html.isDescendant(e.target, this.searchResultsNode)) {
                     this._hideResultMenu();
                     this._resetSelectorPosition('.show-all-results');
@@ -224,8 +243,8 @@ define([
           }));
       },
 
-      _convertConfig: function(config) {
-        var sourceDefs = array.map(config.sources, lang.hitch(this, function(source) {
+      _convertConfig: function (config) {
+        var sourceDefs = array.map(config.sources, lang.hitch(this, function (source) {
           var def = new Deferred();
           if (source && source.url && source.type === 'locator') {
             var _source = {
@@ -246,7 +265,7 @@ define([
               _panToScale: source.panToScale
             };
 
-            if(source.maxSuggestions === 0) {
+            if (source.maxSuggestions === 0) {
               _source.enableSuggestions = false;
             } else if (source.maxSuggestions === null || source.maxSuggestions === undefined) {
               _source.maxSuggestions = 6;
@@ -271,7 +290,7 @@ define([
               outFields: ["*"]
             });
 
-            this.own(on(searchLayer, 'load', lang.hitch(this, function(result) {
+            this.own(on(searchLayer, 'load', lang.hitch(this, function (result) {
               var flayer = result.layer;
 
               // identify the data source
@@ -279,11 +298,11 @@ define([
               var sourceLayerInfo = this.layerInfosObj.getLayerInfoById(source.layerId);
               var showInfoWindowOnSelect;
               var enableInfoWindow;
-              if(sourceLayer) {
+              if (sourceLayer) {
                 // pure feature service layer defined in the map
                 showInfoWindowOnSelect = false;
                 enableInfoWindow = false;
-              } else if (sourceLayerInfo){
+              } else if (sourceLayerInfo) {
                 // feature service layer defined in the map
                 showInfoWindowOnSelect = false;
                 enableInfoWindow = false;
@@ -300,7 +319,7 @@ define([
                 fNames = source.searchFields;
               } else {
                 fNames = [];
-                array.forEach(flayer.fields, function(field) {
+                array.forEach(flayer.fields, function (field) {
                   if (field.type !== "esriFieldTypeOID" && field.name !== flayer.objectIdField &&
                     field.type !== "esriFieldTypeGeometry") {
                     fNames.push(field.name);
@@ -333,7 +352,7 @@ define([
               }
               */
 
-              if(source.maxSuggestions === 0) {
+              if (source.maxSuggestions === 0) {
                 convertedSource.enableSuggestions = false;
               } else if (source.maxSuggestions === null || source.maxSuggestions === undefined) {
                 convertedSource.maxSuggestions = 6;
@@ -344,60 +363,60 @@ define([
               if (convertedSource._featureLayerId) {
                 var layerInfo = this.layerInfosObj
                   .getLayerInfoById(convertedSource._featureLayerId);
-                if(layerInfo) {
+                if (layerInfo) {
                   flayer.setDefinitionExpression(layerInfo.getFilter());
                 }
               }
 
               //var template = this._getInfoTemplate(flayer, source, source.displayField);
-              this._getInfoTemplate(flayer, source).then(lang.hitch(this, function(infoTemplate){
+              this._getInfoTemplate(flayer, source).then(lang.hitch(this, function (infoTemplate) {
                 //convertedSource.infoTemplate = lang.clone(infoTemplate);
                 convertedSource.infoTemplate = infoTemplate;
                 def.resolve(convertedSource);
-              }), lang.hitch(this, function() {
+              }), lang.hitch(this, function () {
                 def.resolve(convertedSource);
               }));
 
-              if(sourceLayerInfo) {
-                if(searchLayer.geometryType === "esriGeometryPoint") {
+              if (sourceLayerInfo) {
+                if (searchLayer.geometryType === "esriGeometryPoint") {
                   convertedSource.highlightSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE,
-                                                                     10,
-                                                                     new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                                          new Color([0, 255, 255, 0.0]),
-                                                                                          2),
-                                                                     new Color([0, 0, 0, 0.0]));
-                } else if(searchLayer.geometryType === "esriGeometryPolyline") {
+                    10,
+                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                      new Color([0, 255, 255, 0.0]),
+                      2),
+                    new Color([0, 0, 0, 0.0]));
+                } else if (searchLayer.geometryType === "esriGeometryPolyline") {
                   convertedSource.highlightSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                         new Color([0, 255, 255, 0.0]),
-                                                                         2);
-                } else if(searchLayer.geometryType === "esriGeometryPolygon") {
+                    new Color([0, 255, 255, 0.0]),
+                    2);
+                } else if (searchLayer.geometryType === "esriGeometryPolygon") {
                   convertedSource.highlightSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_NULL,
-                                                      new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                           new Color([0, 255, 255, 0.0]),
-                                                                           2));
+                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                      new Color([0, 255, 255, 0.0]),
+                      2));
                 }
               } else {
-                if(searchLayer.geometryType === "esriGeometryPoint") {
+                if (searchLayer.geometryType === "esriGeometryPoint") {
                   convertedSource.highlightSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE,
-                                                                     10,
-                                                                     new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                                          new Color([0, 255, 255]),
-                                                                                          2),
-                                                                     new Color([0, 0, 0]));
-                } else if(searchLayer.geometryType === "esriGeometryPolyline") {
+                    10,
+                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                      new Color([0, 255, 255]),
+                      2),
+                    new Color([0, 0, 0]));
+                } else if (searchLayer.geometryType === "esriGeometryPolyline") {
                   convertedSource.highlightSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                         new Color([0, 255, 255]),
-                                                                         2);
-                } else if(searchLayer.geometryType === "esriGeometryPolygon") {
+                    new Color([0, 255, 255]),
+                    2);
+                } else if (searchLayer.geometryType === "esriGeometryPolygon") {
                   convertedSource.highlightSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_NULL,
-                                                      new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                                                                           new Color([0, 255, 255]),
-                                                                           2));
+                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                      new Color([0, 255, 255]),
+                      2));
                 }
               }
             })));
 
-            this.own(on(searchLayer, 'error', function() {
+            this.own(on(searchLayer, 'error', function () {
               def.resolve(null);
             }));
           } else {
@@ -409,9 +428,9 @@ define([
         return sourceDefs;
       },
 
-      _getLocalSearchDistance: function(source) {
+      _getLocalSearchDistance: function (source) {
         var result;
-        switch(source.radiusUnit || "meter") {
+        switch (source.radiusUnit || "meter") {
           case "kilometer":
             result = source.localSearchDistance * 1000;
             break;
@@ -437,7 +456,7 @@ define([
         return result;
       },
 
-      _getInfoTemplate: function(fLayer, source) {
+      _getInfoTemplate: function (fLayer, source) {
         var def = new Deferred();
         var layerInfo = this.layerInfosObj.getLayerInfoById(source.layerId);
         var template;
@@ -446,19 +465,19 @@ define([
           def = layerInfo.loadInfoTemplate();
         } else {
           var fieldNames = [];
-          array.filter(fLayer.fields, function(field) {
+          array.filter(fLayer.fields, function (field) {
             var fieldName = field.name.toLowerCase();
-            if(fieldName.indexOf("shape") < 0 &&
-               fieldName.indexOf("objectid") < 0 &&
-               fieldName.indexOf("globalid") < 0 &&
-               fieldName.indexOf("perimeter") < 0) {
+            if (fieldName.indexOf("shape") < 0 &&
+              fieldName.indexOf("objectid") < 0 &&
+              fieldName.indexOf("globalid") < 0 &&
+              fieldName.indexOf("perimeter") < 0) {
               fieldNames.push(field.name);
             }
           });
 
-          var title =  source.name + ": {" + source.displayField + "}";
+          var title = source.name + ": {" + source.displayField + "}";
           var popupInfo = jimuUtils.getDefaultPopupInfo(fLayer, title, fieldNames);
-          if(popupInfo) {
+          if (popupInfo) {
             template = new PopupTemplate(popupInfo);
           }
           def.resolve(template);
@@ -466,8 +485,8 @@ define([
         return def;
       },
 
-      _getSourceIndexOfResult: function(e) {
-        if (this.searchResults){
+      _getSourceIndexOfResult: function (e) {
+        if (this.searchResults) {
           for (var i in this.searchResults) {
             var sourceResults = this.searchResults[i];
             var pos = array.indexOf(sourceResults, e);
@@ -481,17 +500,17 @@ define([
       },
 
 
-      _zoomToScale: function(zoomScale, features) {
+      _zoomToScale: function (zoomScale, features) {
         this.map.setScale(zoomScale);
         jimuUtils.featureAction.panTo(this.map, features);
       },
 
-      _showPopupByFeatures: function(layerInfo, features, selectEvent) {
+      _showPopupByFeatures: function (layerInfo, features, selectEvent) {
         /*jshint unused: false*/
         var location = null;
         var isPoint = false;
 
-        if(this.config.showInfoWindowOnSelect) {
+        if (this.config.showInfoWindowOnSelect) {
           //this.map.infoWindow.clearFeatures();
           //this.map.infoWindow.hide();
           this.map.infoWindow.setFeatures(features);
@@ -502,7 +521,7 @@ define([
             var extent = features[0].geometry && features[0].geometry.getExtent();
             location = extent && extent.getCenter();
           }
-          if(location) {
+          if (location) {
             this.map.infoWindow.show(location, {
               closetFirst: true
             });
@@ -517,7 +536,7 @@ define([
         // zoomto result
         if (selectEvent.source._panToScale) {
           jimuUtils.featureAction.panTo(this.map, features);
-        } else if(selectEvent.source._zoomScaleOfConfigSource) {
+        } else if (selectEvent.source._zoomScaleOfConfigSource) {
           this._zoomToScale(selectEvent.source.zoomScale, features);
         } else {
           var featureSet = jimuUtils.toFeatureSet(features);
@@ -525,27 +544,27 @@ define([
         }
       },
 
-      _cloneInfoTemplate: function(infoTemplate) {
+      _cloneInfoTemplate: function (infoTemplate) {
         var newInfoTemplate = null;
-        if(infoTemplate && infoTemplate.toJson) {
+        if (infoTemplate && infoTemplate.toJson) {
           newInfoTemplate = new infoTemplate.constructor(infoTemplate.toJson());
         }
         return newInfoTemplate;
       },
 
-      _loadInfoTemplateAndShowPopup: function(layerInfo, selectedFeature, selectEvent) {
-        if(layerInfo) {
+      _loadInfoTemplateAndShowPopup: function (layerInfo, selectedFeature, selectEvent) {
+        if (layerInfo) {
           //this.searchDijit.clearGraphics();
           var layerObjectInMap = this.map.getLayer(layerInfo.id);
-          if(layerInfo.isPopupEnabled() && layerObjectInMap) {
+          if (layerInfo.isPopupEnabled() && layerObjectInMap) {
             this._showPopupByFeatures(layerInfo, [selectedFeature], selectEvent);
           } else {
-            layerInfo.loadInfoTemplate().then(lang.hitch(this, function(infoTemplate) {
+            layerInfo.loadInfoTemplate().then(lang.hitch(this, function (infoTemplate) {
               //temporary set infoTemplate to selectedFeature.
               selectedFeature.setInfoTemplate(this._cloneInfoTemplate(infoTemplate));
               this._showPopupByFeatures(layerInfo, [selectedFeature], selectEvent);
               // clear infoTemplate for selectedFeature;
-              var handle = aspect.before(this.map, 'onClick', lang.hitch(this, function() {
+              var handle = aspect.before(this.map, 'onClick', lang.hitch(this, function () {
                 selectedFeature.setInfoTemplate(null);
                 handle.remove();
               }));
@@ -554,7 +573,7 @@ define([
         }
       },
 
-      _onSelectResult: function(e) {
+      _onSelectResult: function (e) {
         this.searchDijit.clearGraphics(); //MJM - Clear default address point graphic
         mjm_ClickReport.newReport(this.map, e.result.feature.geometry, this.map.spatialReference);  //MJM - run mjm_ClickReport to create custom popup - need to be consistent with geocoders (sends map point)
         var result = e.result;
@@ -564,9 +583,9 @@ define([
         var resultFeature = e.result.feature;
         var sourceLayerId = e.source._featureLayerId;
 
-        var getGraphics = function(layer, fid) {
+        var getGraphics = function (layer, fid) {
           var graphics = layer.graphics;
-          var gs = array.filter(graphics, function(g) {
+          var gs = array.filter(graphics, function (g) {
             return g.attributes[layer.objectIdField] === fid;
           });
           return gs;
@@ -579,7 +598,7 @@ define([
           }
         }
         query('li', this.searchResultsNode)
-          .forEach(lang.hitch(this, function(li) {
+          .forEach(lang.hitch(this, function (li) {
             html.removeClass(li, 'result-item-selected');
             var title = html.getAttr(li, 'title');
             var dIdx = html.getAttr(li, 'data-index');
@@ -599,7 +618,7 @@ define([
         var layerInfo = this.layerInfosObj.getLayerInfoById(sourceLayerId);
 
         if (layerInfo) {
-          layerInfo.getLayerObject().then(lang.hitch(this, function(layer) {
+          layerInfo.getLayerObject().then(lang.hitch(this, function (layer) {
             var gs = getGraphics(layer, resultFeature.attributes[layer.objectIdField]);
             if (gs && gs.length > 0) {
               //this._showPopupByFeatures(gs);
@@ -608,13 +627,13 @@ define([
 
               var featureQuery = new FeatureQuery();
               featureQuery.where = layer.objectIdField + " = " +
-                                 resultFeature.attributes[layer.objectIdField];
+                resultFeature.attributes[layer.objectIdField];
               featureQuery.outSpatialReference = this.map.spatialReference;
               featureQuery.outFields = ["*"];
 
-              layer.queryFeatures(featureQuery, lang.hitch(this, function(featureSet) {
+              layer.queryFeatures(featureQuery, lang.hitch(this, function (featureSet) {
                 var selectedFeature = null;
-                if(featureSet && featureSet.features.length > 0) {
+                if (featureSet && featureSet.features.length > 0) {
                   selectedFeature = featureSet.features[0];
                   // working around for js-api's generalization.
                   //   incorrect geometry of polygon result of queryFeatures.
@@ -622,7 +641,7 @@ define([
 
                   this._loadInfoTemplateAndShowPopup(layerInfo, selectedFeature, e);
                 }
-              }), lang.hitch(this, function() {
+              }), lang.hitch(this, function () {
                 // show popupInfo of searchResult.
                 var selectedFeature = resultFeature;
                 this._loadInfoTemplateAndShowPopup(layerInfo, selectedFeature, e);
@@ -630,12 +649,12 @@ define([
             }
           }));
 
-        } else if (e.source.featureLayer && !e.source.locator){
+        } else if (e.source.featureLayer && !e.source.locator) {
           // outside resource result:
           // zoomTo or panto by zoomToExtent, popup by search dijit
           if (e.source._panToScale) {
             jimuUtils.featureAction.panTo(this.map, [e.result.feature]);
-          } else if(e.source._zoomScaleOfConfigSource) {
+          } else if (e.source._zoomScaleOfConfigSource) {
             this._zoomToScale(e.source._zoomScaleOfConfigSource, [e.result.feature]);
           } else {
             jimuUtils.zoomToExtent(this.map, e.result.extent);
@@ -658,7 +677,7 @@ define([
         });
       },
 
-      destroy: function() {
+      destroy: function () {
         utils.setMap(null);
         utils.setLayerInfosObj(null);
         utils.setAppConfig(null);
@@ -672,17 +691,17 @@ define([
       /*********************************
        * Methods for Events
        * ******************************/
-      onReceiveData: function(name, widgetId, data) {
+      onReceiveData: function (name, widgetId, data) {
         if (name === 'framework' && widgetId === 'framework' && data && data.searchString) {
           this.searchDijit.set('value', data.searchString);
           this.searchDijit.search();
         }
       },
 
-      onLayerInfosFilterChanged: function(changedLayerInfos) {
-        array.some(changedLayerInfos, lang.hitch(this, function(info) {
+      onLayerInfosFilterChanged: function (changedLayerInfos) {
+        array.some(changedLayerInfos, lang.hitch(this, function (info) {
           if (this.searchDijit && this.searchDijit.sources && this.searchDijit.sources.length > 0) {
-            array.forEach(this.searchDijit.sources, function(s) {
+            array.forEach(this.searchDijit.sources, function (s) {
               if (s._featureLayerId === info.id) {
                 s.featureLayer.setDefinitionExpression(info.getFilter());
               }
@@ -691,13 +710,13 @@ define([
         }));
       },
 
-      _onSourceIndexChange: function() {
+      _onSourceIndexChange: function () {
         if (this.searchDijit.value) {
           this.searchDijit.search(this.searchDijit.value);
         }
       },
 
-      _onSearchResults: function(evt) {
+      _onSearchResults: function (evt) {
         var sources = this.searchDijit.get('sources');
         var activeSourceIndex = this.searchDijit.get('activeSourceIndex');
         var value = this.searchDijit.get('value');
@@ -731,8 +750,8 @@ define([
                 //var text = esriLang.isDefined(results[i][j].name) ?
                 //  results[i][j].name : this.nls.untitled;
                 var text;
-                if(esriLang.isDefined(results[i][j].name)) {
-                  if(source && source.locator && outputTextforCustomInput) {
+                if (esriLang.isDefined(results[i][j].name)) {
+                  if (source && source.locator && outputTextforCustomInput) {
                     results[i][j].name = outputTextforCustomInput;
                   }
                   text = results[i][j].name;
@@ -766,7 +785,7 @@ define([
         });
       },
 
-      _onSuggestResults: function(evt) {
+      _onSuggestResults: function (evt) {
         this._resetSelectorPosition('.searchMenu');
 
         this._hideResultMenu();
@@ -776,7 +795,7 @@ define([
         });
       },
 
-      _onClearSearch: function() {
+      _onClearSearch: function () {
         html.setStyle(this.searchResultsNode, 'display', 'none');
         this.searchResultsNode.innerHTML = "";
         this.searchResults = null;
@@ -799,29 +818,29 @@ define([
       },
       */
 
-      _hidePopup: function() {
+      _hidePopup: function () {
         if (this.map.infoWindow.isShowing) {
           this.map.infoWindow.hide();
         }
       },
 
-      setPosition: function(position) {
+      setPosition: function (position) {
         this._resetSearchDijitStyle(position);
         this.inherited(arguments);
       },
 
-      resize: function() {
+      resize: function () {
         this._resetSearchDijitStyle();
       },
 
       // use for small screen responsive
-      _resetSearchDijitStyle: function() {
+      _resetSearchDijitStyle: function () {
         html.removeClass(this.domNode, 'use-absolute');
         if (this.searchDijit && this.searchDijit.domNode) {
           html.setStyle(this.searchDijit.domNode, 'width', 'auto');
         }
 
-        setTimeout(lang.hitch(this, function() {
+        setTimeout(lang.hitch(this, function () {
           if (this.searchDijit && this.searchDijit.domNode) {
             var box = {
               w: !window.appInfo.isRunInMobile ? 274 : // original width of search dijit
@@ -863,25 +882,25 @@ define([
       /**************************************
        * Mehtods for covert SR
        * ***********************************/
-      _convertSR: function(originalFun) {
-        return lang.hitch(this, function(e) {
+      _convertSR: function (originalFun) {
+        return lang.hitch(this, function (e) {
           var source = this.searchDijit.sources[e.index];
           var pointOfSpecifiedWkid = this._getPointFromSpecifiedWkid(e.text);
           //var pointOfSpecifiedUtm = this._getPointFromSpecifiedUtm(e.text);
-          if(source && source.locator && pointOfSpecifiedWkid) {
+          if (source && source.locator && pointOfSpecifiedWkid) {
             return jimuUtils.projectToSpatialReference(pointOfSpecifiedWkid,
-                                                       new SpatialReference({wkid: 4326}))
-                    .then(lang.hitch(this, function(event, targetPoint) {
-              var inputText = this._getFormatedInputFromPoint(targetPoint);
-              if(inputText) {
-                event.text = inputText;
-              }
-              return originalFun.apply(this.searchDijit, [event]);
-            }, lang.clone(e)));
-          } else if (source && source.locator){
-            return this._getPointFromSpecifiedUtm(e.text).then(lang.hitch(this, function(event, pointOfSpecifiedUtm) {
+              new SpatialReference({ wkid: 4326 }))
+              .then(lang.hitch(this, function (event, targetPoint) {
+                var inputText = this._getFormatedInputFromPoint(targetPoint);
+                if (inputText) {
+                  event.text = inputText;
+                }
+                return originalFun.apply(this.searchDijit, [event]);
+              }, lang.clone(e)));
+          } else if (source && source.locator) {
+            return this._getPointFromSpecifiedUtm(e.text).then(lang.hitch(this, function (event, pointOfSpecifiedUtm) {
               var inputText = this._getFormatedInputFromPoint(pointOfSpecifiedUtm);
-              if(inputText) {
+              if (inputText) {
                 event.text = inputText;
               }
               return originalFun.apply(this.searchDijit, [event]);
@@ -893,35 +912,35 @@ define([
         });
       },
 
-      _getFormatedInputFromPoint: function(point) {
+      _getFormatedInputFromPoint: function (point) {
         var inputText = null;
-        if(point && !isNaN(point.x) && !isNaN(point.y)) {
+        if (point && !isNaN(point.x) && !isNaN(point.y)) {
           //inputText = "X:" + point.x + "," + "Y:" + point.y;
           inputText = "Y:" + point.y + "," + "X:" + point.x;
         }
         return inputText;
       },
 
-      _getPointFromSpecifiedWkid: function(inputString) {
+      _getPointFromSpecifiedWkid: function (inputString) {
         var point = null;
-        if(!inputString) {
+        if (!inputString) {
           return point;
         }
         var coordinateParams = inputString.split(":");
         var coordinateText = coordinateParams[0];
         var wkid = Number(coordinateParams[1]);
-        if(wkid && wkidUtils.isValidWkid(wkid) && coordinateText) {
+        if (wkid && wkidUtils.isValidWkid(wkid) && coordinateText) {
           var coordinateValues = coordinateText.split(",");
           var x = Number(coordinateValues[0]);
           var y = Number(coordinateValues[1]);
-          if(!isNaN(x) && !isNaN(y)) {
-            point = new Point(x, y, new SpatialReference({wkid: wkid}));
+          if (!isNaN(x) && !isNaN(y)) {
+            point = new Point(x, y, new SpatialReference({ wkid: wkid }));
           }
         }
         return point;
       },
 
-      _getPointFromSpecifiedUtmByGeometryService: function(inputString) {
+      _getPointFromSpecifiedUtmByGeometryService: function (inputString) {
         var retDef = new Deferred();
         var resultPoint = null;
         var params = {
@@ -931,16 +950,16 @@ define([
           strings: [inputString]
         };
         var geometryService = esriConfig && esriConfig.defaults && esriConfig.defaults.geometryService;
-        if(geometryService && geometryService.declaredClass === "esri.tasks.GeometryService") {
-          geometryService.fromGeoCoordinateString(params, lang.hitch(this, function(result) {
+        if (geometryService && geometryService.declaredClass === "esri.tasks.GeometryService") {
+          geometryService.fromGeoCoordinateString(params, lang.hitch(this, function (result) {
             var x = Number(result[0][0]);
             var y = Number(result[0][1]);
-            if(!isNaN(x) && !isNaN(y)) {
-              resultPoint = new Point(x, y, new SpatialReference({wkid: 4326}));
+            if (!isNaN(x) && !isNaN(y)) {
+              resultPoint = new Point(x, y, new SpatialReference({ wkid: 4326 }));
               this._pointOfSpecifiedUtmCache[inputString] = resultPoint;
             }
             retDef.resolve(resultPoint);
-          }), lang.hitch(this, function() {
+          }), lang.hitch(this, function () {
             retDef.resolve(resultPoint);
           }));
         } else {
@@ -950,27 +969,27 @@ define([
         return retDef;
       },
 
-      _isValidUtmFormat: function(utmString) {
+      _isValidUtmFormat: function (utmString) {
         return utmString && utmString.indexOf && utmString.indexOf(',') < 0 ? true : false;
       },
 
-      _getPointFromSpecifiedUtm: function(inputString) {
+      _getPointFromSpecifiedUtm: function (inputString) {
         var retDef = new Deferred();
         var resultPoint = null;
-        if(!inputString || !this._isValidUtmFormat(inputString)) {
+        if (!inputString || !this._isValidUtmFormat(inputString)) {
           retDef.resolve(resultPoint);
           return retDef;
         }
 
-        if(coordinateFormatter.isSupported()) {
-          if(coordinateFormatter.isLoaded()) {
+        if (coordinateFormatter.isSupported()) {
+          if (coordinateFormatter.isLoaded()) {
             var point = coordinateFormatter.fromUtm(inputString,
-                                                    new SpatialReference({wkid: 4326}),
-                                                    "latitude-band-indicators");
-            if(point && !isNaN(point.x) && !isNaN(point.y)) {
+              new SpatialReference({ wkid: 4326 }),
+              "latitude-band-indicators");
+            if (point && !isNaN(point.x) && !isNaN(point.y)) {
               // the 'fromUtm' will convert the string "8430 FOX LAIR CIR, Anchorage, AK" to a point,
               // need to further verify the utm string by geometry service.
-              this._getPointFromSpecifiedUtmByGeometryService(inputString).then(lang.hitch(this, function(resultPoint) {
+              this._getPointFromSpecifiedUtmByGeometryService(inputString).then(lang.hitch(this, function (resultPoint) {
                 retDef.resolve(resultPoint);
               }));
             } else {
@@ -986,13 +1005,13 @@ define([
         return retDef;
       },
 
-      _getOutputTextForCustomInput: function(inputText) {
+      _getOutputTextForCustomInput: function (inputText) {
         var outputText = null;
         var pointOfSpecifiedWkid = this._getPointFromSpecifiedWkid(inputText);
         var pointOfSpecifiedUtm = this._pointOfSpecifiedUtmCache[inputText];
-        if(pointOfSpecifiedWkid) {
+        if (pointOfSpecifiedWkid) {
           outputText = "X:" + pointOfSpecifiedWkid.x + " " + "Y:" + pointOfSpecifiedWkid.y;
-        } else if(pointOfSpecifiedUtm){
+        } else if (pointOfSpecifiedUtm) {
           outputText = inputText;
         }
         return outputText;
@@ -1000,13 +1019,13 @@ define([
       /***********************************
        * Mehtods for control result menu
        * *********************************/
-      _onSearchDijitClick: function() {
+      _onSearchDijitClick: function () {
         this._resetSelectorPosition('.searchMenu');
       },
 
-      _onSelectSearchResult: function(evt) {
+      _onSelectSearchResult: function (evt) {
         var target = evt.target;
-        while(!(html.hasAttr(target, 'data-source-index') && html.getAttr(target, 'data-index'))) {
+        while (!(html.hasAttr(target, 'data-source-index') && html.getAttr(target, 'data-index'))) {
           target = target.parentNode;
         }
         var result = null;
@@ -1024,12 +1043,12 @@ define([
         }
       },
 
-      _hideResultMenu: function() {
+      _hideResultMenu: function () {
         query('.show-all-results', this.searchResultsNode).style('display', 'block');
         query('.searchMenu', this.searchResultsNode).style('display', 'none');
       },
 
-      _showResultMenu: function() {
+      _showResultMenu: function () {
         html.setStyle(this.searchResultsNode, 'display', 'block');
         query('.show-all-results', this.searchResultsNode).style('display', 'none');
         query('.searchMenu', this.searchResultsNode).style('display', 'block');
@@ -1052,9 +1071,9 @@ define([
       },
 
       // set position for 'searchSuggestiongMenu', 'searchResultMenu', 'showAllResultsBox'
-      _resetSelectorPosition: function(cls) {
+      _resetSelectorPosition: function (cls) {
         var layoutBox = html.getMarginBox(window.jimuConfig.layoutId);
-        query(cls, this.domNode).forEach(lang.hitch(this, function(menu) {
+        query(cls, this.domNode).forEach(lang.hitch(this, function (menu) {
           var menuPosition = html.position(menu);
           if (html.getStyle(menu, 'display') === 'none') {
             return;
@@ -1068,7 +1087,7 @@ define([
               'top',
               (
                 (down > menuPosition.y + menuPosition.h) ?
-                dijitPosition.h : -menuPosition.h - 2
+                  dijitPosition.h : -menuPosition.h - 2
               ) + 'px'
             );
           } else {
@@ -1078,7 +1097,7 @@ define([
         }));
       },
 
-      _inputKey: function(e) {
+      _inputKey: function (e) {
         if (e) {
           var lists = query("li", this.searchResultsNode);
           if (e.keyCode === keys.TAB || e.keyCode === keys.ESCAPE) {
@@ -1096,10 +1115,10 @@ define([
           } else if (e.keyCode === keys.UP_ARROW) {
             e.stopPropagation();
             e.preventDefault();
-            array.some(lists, function(li, index) {
-              if(html.hasClass(li, 'result-item-selected')) {
+            array.some(lists, function (li, index) {
+              if (html.hasClass(li, 'result-item-selected')) {
                 var nextLi = lists[index - 1];
-                if(nextLi) {
+                if (nextLi) {
                   html.removeClass(li, 'result-item-selected');
                   html.addClass(nextLi, 'result-item-selected');
                   focusUtil.focus(nextLi);
@@ -1112,10 +1131,10 @@ define([
           } else if (e.keyCode === keys.DOWN_ARROW) {
             e.stopPropagation();
             e.preventDefault();
-            array.some(lists, function(li, index) {
-              if(html.hasClass(li, 'result-item-selected')) {
+            array.some(lists, function (li, index) {
+              if (html.hasClass(li, 'result-item-selected')) {
                 var nextLi = lists[index + 1];
-                if(nextLi) {
+                if (nextLi) {
                   html.removeClass(li, 'result-item-selected');
                   html.addClass(nextLi, 'result-item-selected');
                   focusUtil.focus(nextLi);
@@ -1135,9 +1154,9 @@ define([
         }
       },
 
-      _onSearchResultLiKey: function(e) {
+      _onSearchResultLiKey: function (e) {
         if (e) {
-          if(e.keyCode === keys.ENTER) {
+          if (e.keyCode === keys.ENTER) {
             this._onSelectSearchResult(e);
           } else if (e.keyCode === keys.DOWN_ARROW || e.keyCode === keys.UP_ARROW) {
             this._inputKey(e);
