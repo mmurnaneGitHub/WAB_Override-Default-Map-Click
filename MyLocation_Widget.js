@@ -15,28 +15,32 @@
 ///////////////////////////////////////////////////////////////////////////
 
 define([
-    'dojo/_base/declare',
-    'jimu/BaseWidget',
-    "esri/dijit/LocateButton",
-    'dojo/_base/html',
-    'dojo/on',
-    'dojo/_base/lang',
-    'jimu/utils',
-    'libs/mjm_ClickReport', //MJM
-    "./Compass",
-    "./a11y/Widget",
-    'jimu/dijit/Message',
-    'dojo/touch'
-  ],
-  function(declare, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport, Compass, a11y) {
+  'dojo/_base/declare',
+  'dojo/Deferred',
+  "esri/layers/GraphicsLayer",
+  'jimu/BaseWidget',
+  "esri/dijit/LocateButton",
+  'dojo/_base/html',
+  'dojo/on',
+  'dojo/_base/lang',
+  'jimu/utils',
+  'libs/mjm_ClickReport', //MJM
+  "./Compass",
+  "./a11y/Widget",
+  'jimu/dijit/Message',
+  'dojo/touch'
+],
+  function (declare, Deferred, GraphicsLayer, BaseWidget, LocateButton, html, on, lang, jimuUtils, mjm_ClickReport, Compass, a11y) {
     var clazz = declare([BaseWidget], {
-
       name: 'MyLocation',
       baseClass: 'jimu-widget-mylocation',
 
       moveTopOnActive: false,
+      _DEBUG: false,
 
-      startup: function() {
+      _graphicsLayer: null,
+
+      startup: function () {
         this.inherited(arguments);
         this.a11y_updateLabel(this.nls._widgetLabel);
         this.placehoder = html.create('div', {
@@ -60,43 +64,108 @@ define([
         }
       },
 
-      onLocationClick: function(evt) {
-        if(evt && evt.stopPropagation){
+      onLocationClick: function (evt) {
+        if (evt && evt.stopPropagation) {
           evt.stopPropagation();
         }
 
         if (html.hasClass(this.domNode, "onCenter") ||
           html.hasClass(this.domNode, "locating")) {
-          html.removeClass(this.domNode, "onCenter");
-          html.removeClass(this.placehoder, "tracking");
-          this._destroyGeoLocate();
-          // this._destroyDirectionHandler();
-          // this._destroyAccCircle();
+
+          if(!(this.geoLocate && true === this.geoLocate._canDestroy)){
+            if(this._DEBUG){
+              console.log("==>block click1");
+            }
+            return;
+          }
+
+
+          this._destroyGeoLocate();//this._clearGeoLocate();
           this._tryToCleanCompass();
         } else {
-          this._createGeoLocate();
+          if(!(!this.geoLocate || (this.geoLocate && true === this.geoLocate._canDestroy))){
+            if(this._DEBUG){
+              console.log("==>block click2");
+            }
+            return;
+          }
+
+          this._destroyGeoLocate();//this._clearGeoLocate();
+          this._createGeoLocateAndLocate();
+        }
+      },
+
+
+      //create & async-locate
+      _createGeoLocateAndLocate: function () {
+        if(this._DEBUG){
+          console.log("==>_createGeoLocateAndLocate");
+        }
+        this.getGeoLocateInstance().then(lang.hitch(this, function () {
           this.geoLocate.locate();
           html.addClass(this.placehoder, "locating");
+        }));
+      },
+      getGeoLocateInstance: function () {
+        var def = new Deferred();
+        //1 get
+        if (this.geoLocate) {
+          def.resolve(this.geoLocate);
         }
+        //2 create
+        var json = this.config.locateButton;
+        json.map = this.map;
+        if (typeof (this.config.locateButton.useTracking) === "undefined") {
+          json.useTracking = true;
+        }
+        json.centerAt = true;
+        json.setScale = true;
+        var geoOptions = {
+          maximumAge: 0,
+          timeout: 15000,
+          enableHighAccuracy: true
+        };
+        if (json.geolocationOptions) {
+          json.geolocationOptions = lang.mixin(geoOptions, json.geolocationOptions);
+        }
+        if (jimuUtils.has('ie') === 11) {//hack for issue,#11199
+          json.geolocationOptions.maximumAge = 300;
+          json.geolocationOptions.enableHighAccuracy = false;
+        }
+
+        if (!this._graphicsLayer) {
+          this._graphicsLayer = new GraphicsLayer();
+          this.map.addLayer(this._graphicsLayer);
+        }
+        json.graphicsLayer = this._graphicsLayer;
+
+        this.geoLocate = new LocateButton(json);
+        this.geoLocate.own(on(this.geoLocate, 'load', lang.hitch(this, function () {
+          def.resolve(this.geoLocate);
+        })));
+        //only 3d-api have error event
+        this.geoLocate.own(on(this.geoLocate, "locate", lang.hitch(this, this.onLocateOrError)));
+        this.geoLocate.startup();
+
+        return def;
       },
 
-      //use current scale in Tracking
-      _scaleChangeHandler: function() {
-        var scale = this.map.getScale();
-        if (scale && this.geoLocate && this.geoLocate.useTracking) {
-          this.geoLocate.scale = scale;
-        }
-      },
 
+      //events handler
       //there is no "locate-error" event in 2d-api
       onLocateOrError: function (evt) {
-        if (evt.error) {
-          this.onLocateError(evt);
-        } else {
-          this.onLocate(evt);
+        if(this.geoLocate){
+          setTimeout(lang.hitch(this, function () {
+            this.geoLocate._canDestroy = true;
+
+            if (evt.error) {
+              this.onLocateError(evt);
+            } else {
+              this.onLocate(evt);
+            }
+          }), 300);
         }
       },
-
       onLocate: function (parameters) {
         html.removeClass(this.placehoder, "locating");
         if (this.geoLocate.useTracking) {
@@ -113,6 +182,22 @@ define([
           this._tryToShowCompass(parameters);
         }
       },
+      onLocateError: function (evt) {
+        console.error(evt.error);
+        //this._destroyAPIBugLocate();
+        this._tryToCleanCompass();
+        html.removeClass(this.placehoder, "locating");
+        html.removeClass(this.domNode, "onCenter");
+        html.removeClass(this.placehoder, "tracking");
+      },
+      //use current scale in Tracking
+      _scaleChangeHandler: function () {
+        var scale = this.map.getScale();
+        if (scale && this.geoLocate && this.geoLocate.useTracking) {
+          this.geoLocate.scale = scale;
+        }
+      },
+
 
       //compass
       _tryToShowCompass: function (parameters) {
@@ -138,58 +223,68 @@ define([
         }
       },
 
-      onLocateError: function(evt) {
-        console.error(evt.error);
-        this._tryToCleanCompass();
-        html.removeClass(this.placehoder, "locating");
-        html.removeClass(this.domNode, "onCenter");
-        html.removeClass(this.placehoder, "tracking");
+
+      // _clearGeoLocate: function () {
+      //   if (this.geoLocate){
+      //     this.geoLocate.clear();
+      //     html.removeClass(this.domNode, "onCenter");
+      //     html.removeClass(this.placehoder, "tracking");
+      //     this._destroyAPIBugLocate();
+      //   }
+      // },
+      // _isGeoLocateLocating: function () {
+      //   return html.hasClass(this.geoLocate._locateNode, this.geoLocate._css.loading);
+      // },
+      _destroyGeoLocate: function () {
+        if(this._DEBUG){
+          console.log("==>_destroyGeoLocate");
+        }
+
+        if(this._graphicsLayer){
+          this._graphicsLayer.clear();
+        }
+
+        if (this.geoLocate && this.geoLocate._canDestroy) {
+          if (this.geoLocate) {
+            this.geoLocate.clear();
+            this.geoLocate.destroy();
+            this.geoLocate = null;
+          }
+          //this._destroyAPIBugLocate();
+          html.removeClass(this.domNode, "onCenter");
+          html.removeClass(this.placehoder, "tracking");
+        }
       },
-
-      _createGeoLocate: function() {
-        var json = this.config.locateButton;
-        json.map = this.map;
-        if (typeof(this.config.locateButton.useTracking) === "undefined") {
-          json.useTracking = true;
-        }
-        json.centerAt = true;
-        json.setScale = true;
-
-        var geoOptions = {
-          maximumAge: 0,
-          timeout: 15000,
-          enableHighAccuracy: true
-        };
-        if (json.geolocationOptions) {
-          json.geolocationOptions = lang.mixin(geoOptions, json.geolocationOptions);
-        }
-
-        //hack for issue,#11199
-        if (jimuUtils.has('ie') === 11) {
-          json.geolocationOptions.maximumAge = 300;
-          json.geolocationOptions.enableHighAccuracy = false;
-        }
-
-        this.geoLocate = new LocateButton(json);
-        this.geoLocate.startup();
-        //only 3d-api have error event
-        this.geoLocate.own(on(this.geoLocate, "locate", lang.hitch(this, this.onLocateOrError)));
-      },
-
-      _destroyGeoLocate: function() {
-        if (this.geoLocate) {
-          this.geoLocate.clear();
-          this.geoLocate.destroy();
-        }
-
-        this.geoLocate = null;
-      },
+      //hack api bug, when destroy before locating finish
+      // _destroyAPIBugLocate: function () {
+      //   var graphics = this.map.graphics.graphics;
+      //   for (var i = 0, len = graphics.length; i < len; i++) {
+      //     var g = graphics[i];
+      //     if (g.symbol && this._endsWithStr(g.symbol.url, "/dijit/images/sdk_gps_location.png")) {
+      //       this.map.graphics.remove(g);
+      //       i = 0;
+      //       len = graphics.length;
+      //     }
+      //   }
+      // },
+      /*jshint esnext: true */
+      /* jscs:disable */
+      // _endsWithStr(string, suf) {
+      //   var reg = new RegExp(suf + "$");
+      //   return reg.test(string);
+      // },
+      /* jscs:enable */
       destroy: function () {
         this._tryToCleanCompass();
         this._tryToDestroyCompass();
-        // this._destroyDirectionHandler();
-        //this._destroyAccCircle();
+
         this._destroyGeoLocate();
+
+        if(this._graphicsLayer){
+          this.map.removeLayer(this._graphicsLayer);
+          this._graphicsLayer = null;
+        }
+
         this.inherited(arguments);
       }
     });
