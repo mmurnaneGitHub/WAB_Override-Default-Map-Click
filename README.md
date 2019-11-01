@@ -13,4 +13,4 @@ INSTRUCTIONS:
 
 4. The rest of the work is done \libs\mjm_ClickReport.js which is unique for each application.
 
-5. IMPORTANT MOBILE NOTE: In the Search config file the "showInfoWindowOnSelect" option must be set to false to prevent mobile popups from ignoring generated popup report from mjm_ClickReport.js. 
+5. IMPORTANT MOBILE NOTE: In the Search config file the "showInfoWindowOnSelect" option must be set to false to prevent mobile popups from ignoring generated popup report from mjm_ClickReport.js. During WAB upgrade the option is set back to true.
